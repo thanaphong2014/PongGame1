@@ -11,7 +11,7 @@ public class Ball {
     Ball(int screenX){
     // Make the ball square and 1% of screen width of the screen width
         mBallWidth = screenX / 100;
-        mBallHeight = screenX / 50;
+        mBallHeight = screenX / 100;
 
     // Initialize the RectF with 0, 0, 0, 0
         mRect = new RectF();

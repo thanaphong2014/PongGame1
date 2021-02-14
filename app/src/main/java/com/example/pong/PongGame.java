@@ -4,117 +4,165 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.RectF;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
 public class PongGame extends SurfaceView implements Runnable {
-    //Attribut
-    // Holds the resolution of the screen
+
     private int mScreenX;
     private int mScreenY;
-    // How big will the text be?
+
     private int mFontSize;
     private int mFontMargin;
-    // The current score and lives remaining
+
     private int mScore;
     private int mLives;
-    // The game objects
-    private Bat mBat;
-    private Ball mBall;
-    // These objects are needed to do the drawing
+
+    public Bat mBat;
+    public Ball mBall;
+
     private SurfaceHolder mOurHolder;
     private Canvas mCanvas;
     private Paint mPaint;
-    // Are we debugging?
+
     private final boolean DEBUGGING = true;
-    // How many frames per second did we get?
     private long mFPS;
-    // The number of milliseconds in a second
     private final int MILLIS_IN_SECOND = 1000;
-    // Here is the Thread and two control variables
+
     private Thread mGameThread = null;
-    // This volatile variable can be accessed from inside and outside the thread
     private volatile boolean mPlaying;
     private boolean mPaused = true;
 
+
     public PongGame(Context context, int x, int y) {
         super(context);
-        // Initialize these two members/fields
-// With the values passed in as parameters
+
         mScreenX = x;
         mScreenY = y;
-// Font is 5% (1/20th) of screen width
         mFontSize = mScreenX / 20;
-// Margin is 1.5% (1/75th) of screen width
         mFontMargin = mScreenX / 75;
-// Initialize the objects
-// ready for drawing with
-// getHolder is a method of SurfaceView
         mOurHolder = getHolder();
         mPaint = new Paint();
-// Initialize the bat and ball
-// Everything is ready so start the game
         mBall = new Ball(mScreenX);
+        mBat = new Bat(mScreenX, mScreenY);
         startNewGame();
     }
 
     private void startNewGame() {
+        mBall.reset(mScreenX, mScreenY);
         mScore = 0;
         mLives = 3;
-        mBall.reset(mScreenX, mScreenY);
     }
-
     private void draw() {
-
-
         if (mOurHolder.getSurface().isValid()) {
             mCanvas = mOurHolder.lockCanvas(); // Lock the canvas (graphics memory)
             mCanvas.drawColor(Color.argb(255, 26, 128, 182));
             mPaint.setColor(Color.argb(255, 255, 255, 255));
             mPaint.setTextSize(mFontSize);
-            mCanvas.drawText("Score: " + mScore + " Lives: " + mLives, mFontMargin, mFontSize, mPaint);
-            mCanvas.drawRect(mBall.getRect(), mPaint);
+            mCanvas.drawText("Score: " + mScore + " Lives: " + mLives,
 
+                    mFontMargin, mFontSize, mPaint);
+            mCanvas.drawRect(mBall.getRect(), mPaint);
+            mCanvas.drawRect(mBat.getRect(), mPaint);
             if (DEBUGGING) {
                 printDebuggingText();
             }
             mOurHolder.unlockCanvasAndPost(mCanvas);
         }
     }
-
-
     private void printDebuggingText() {
         int debugSize = mFontSize / 2;
         int debugStart = 150;
         mPaint.setTextSize(debugSize);
-        mCanvas.drawText("FPS: " + mFPS,
-
-                10, debugStart + debugSize, mPaint);
+        mCanvas.drawText("FPS: " + mFPS , 10, debugStart + debugSize, mPaint);
     }
+
     @Override
     public void run() {
         while (mPlaying) {
-// What time is it now at the start of the loop?
             long frameStartTime = System.currentTimeMillis();
-// Provided the game isn't paused call the update method
-            if (!mPaused) {
-                update(); // update new positions
-                detectCollisions(); // detect collisions
+            if(!mPaused){
+                update();
+                detectCollisions();
             }
-//draw the scene
             draw();
-// How long did this frame/loop take?
             long timeThisFrame = System.currentTimeMillis() - frameStartTime;
-// check timeThisFrame > 0 ms because dividing by 0 will crashes game
             if (timeThisFrame > 0) {
-// Store frame rate to pass to the update methods of mBat and mBall
                 mFPS = MILLIS_IN_SECOND / timeThisFrame;
             }
         }
     }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent motionEvent) {
+        switch (motionEvent.getAction() & MotionEvent.ACTION_MASK) {
+            case MotionEvent.ACTION_DOWN:
+                mPaused = false;
+                if(motionEvent.getX() > mScreenX / 2){
+                    mBat.setMovementState(mBat.RIGHT);
+                }
+                else{
+                    mBat.setMovementState(mBat.LEFT);
+                }
+                break;
+            case MotionEvent.ACTION_UP:
+                mBat.setMovementState(mBat.STOPPED);
+                break;
+        }
+        return true;
+    }
+    private void detectCollisions() {
+        if(RectF.intersects(mBat.getRect(),mBall.getRect())) {
+            mBall.batBounce(mBat.getRect());
+//            mBall.increaseVelocity();
+            float a = mBat.getRect().left;
+            float b = mBat.getRect().right;
+            float c = (b-a)/4;
+            float x1 = a+c;
+            float x2 = a+(3*c);
+            float d = mBall.getRect().left;
+            float e =mBall.getRect().left;
+            float y =(d-e)/2;
+            if(y < x2 && y >x1)
+            {
+                mScore+=50;
+            }
+            else {
+                mScore += 10;
+            }
+        }
+        if(mBall.getRect().bottom > mScreenY){
+            mBall.reverseYVelocity();
+            mLives--;
+            if(mLives == 0){
+                mPaused = true;
+                startNewGame();
+            }
+        }
+        if(mBall.getRect().top < 0){
+            mBall.reverseYVelocity();
+        }
+        if(mBall.getRect().left < 0){
+            mBall.reverseXVelocity();
+        }
+
+        if(mBall.getRect().right > mScreenX){
+            mBall.reverseXVelocity();
+//            mBall.increaseVelocity();
+            mScore-=5;
+        }
+
+    }
+
+    private void update() {
+        mBall.update(mFPS);
+        mBat.update(mFPS);
+    }
+
     public void pause() {
-// Set mPlaying to false. Stopping the thread isn’t always instant
         mPlaying = false;
         try {
             mGameThread.join();
@@ -122,18 +170,9 @@ public class PongGame extends SurfaceView implements Runnable {
             Log.e("Error:", "joining thread");
         }
     }
-    // This method is called by PongActivity when the player starts the game
     public void resume() {
         mPlaying = true;
-// Initialize the instance of Thread
         mGameThread = new Thread(this);
-// Start the thread
         mGameThread.start();
-    }
-    private void detectCollisions() {
-    }
-
-    private void update() {
-        mBall.update(mFPS);
     }
 }
